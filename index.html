@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- favicon -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  
+  <title>Markdown Kanban Board</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="app-sidebar" id="sidebar-container">
+      <div class="sidebar-header">
+        <div class="logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="logo-icon"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>
+          <h1>md-todo</h1>
+        </div>
+        <p class="subtitle">Kanban for your local Markdown checklists</p>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-header">
+          <h2>Connected Files</h2>
+          <div style="display: flex; gap: 4px;">
+            <button id="add-file-btn" class="icon-btn" title="Connect a single markdown checklist file like todo.md. Use this when you want one file to power the board.">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+            </button>
+            <button id="add-folder-btn" class="icon-btn" title="Connect a project folder and automatically load its todo.md or other markdown checklist file.">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v11z"></path><line x1="12" y1="11" x2="12" y2="17"></line><line x1="9" y1="14" x2="15" y2="14"></line></svg>
+            </button>
+          </div>
+        </div>
+        <div id="project-list" class="project-list">
+          <!-- Dynamically populated -->
+          <div class="empty-state-sidebar">
+            No files connected. Click the document or folder icons above to add projects.
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section instructions">
+        <h2>Instructions</h2>
+        <ul>
+          <li>Open your local <code>todo.md</code> files or directory folders.</li>
+          <li>We look for headings like <code>## Todo</code>, <code>## In Progress</code>, <code>## Done</code> to create columns.</li>
+          <li>Checkboxes like <code>- [ ] Task</code> become cards.</li>
+          <li>Drag cards to update columns and auto-save back to your file.</li>
+        </ul>
+      </div>
+      
+      <div class="sidebar-footer">
+        <span class="version">v1.0.0 (Local Only)</span>
+      </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <main class="app-main">
+      <!-- Top Header -->
+      <header class="app-header">
+        <div class="header-search">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="search-icon"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+          <input type="text" id="search-input" placeholder="Search tasks or tags (e.g. #bug)..." aria-label="Search tasks">
+        </div>
+        <div class="header-actions">
+          <label class="toggle-control" id="theme-toggle-label" title="Toggle theme">
+            <input type="checkbox" id="theme-toggle">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Light Mode</span>
+          </label>
+          <label class="toggle-control">
+            <input type="checkbox" id="hide-completed-toggle">
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Hide Completed</span>
+          </label>
+          <div id="task-stats" class="task-stats">
+            <!-- Dynamically populated -->
+            <span class="stats-badge">0 / 0 Done</span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Kanban Board Container -->
+      <div class="board-container" id="board-container">
+        <!-- Dynamically populated by src/components/kanban.js -->
+        <div class="empty-state-board">
+          <div class="empty-icon">📂</div>
+          <h2>Connect Markdown Files to Start</h2>
+          <p>This board visualizes your local todo.md files as a drag-and-drop Kanban interface.</p>
+          <p class="warning-note">🔒 Your data stays 100% offline. Files are read and written directly on your device.</p>
+          <div style="display: flex; gap: 12px; margin-top: 8px;">
+            <button id="connect-first-file-btn" class="btn btn-primary">Connect a file</button>
+            <button id="connect-first-folder-btn" class="btn btn-secondary">Connect a folder</button>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Task Edit Modal -->
+  <div class="modal-overlay" id="task-modal">
+    <div class="modal-content" role="dialog" aria-labelledby="modal-title">
+      <div class="modal-header">
+        <span class="project-pill" id="modal-project-badge">Project</span>
+        <h2 id="modal-title-heading">Edit Task</h2>
+        <button id="modal-close-btn" class="close-btn" aria-label="Close modal">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+        </button>
+      </div>
+      <form id="task-form" onsubmit="return false;">
+        <div class="form-group">
+          <label for="task-title-input">Task Title</label>
+          <input type="text" id="task-title-input" required placeholder="What needs to be done?" aria-label="Task title">
+        </div>
+
+        <div class="form-group">
+          <label for="task-description-input">Description</label>
+          <textarea id="task-description-input" rows="4" placeholder="Add details or notes... (Markdown supported)"></textarea>
+        </div>
+
+        <div class="form-group">
+          <div class="subtasks-header">
+            <label>Subtasks</label>
+            <button type="button" id="add-subtask-btn" class="btn-text">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg> Add Subtask
+            </button>
+          </div>
+          <div id="subtasks-list" class="subtasks-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="task-tags-input">Tags (Space separated, start with #)</label>
+          <input type="text" id="task-tags-input" placeholder="e.g. #bug #frontend #high-priority">
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" id="delete-task-btn" class="btn btn-danger">Delete Task</button>
+          <div class="modal-footer-actions">
+            <button type="button" id="cancel-task-btn" class="btn btn-secondary">Cancel</button>
+            <button type="submit" id="save-task-btn" class="btn btn-primary">Save Changes</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main Script Loading -->
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
