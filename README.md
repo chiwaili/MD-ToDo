@@ -4,8 +4,6 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 
 `md-todo` lets you connect markdown checklist files or project folders and view them as a drag-and-drop kanban board in the browser. Changes are saved directly back to your local markdown file using the browser File System Access API.
 
-![Logo](src/images/md-todo-logo.png)
-
 ## Features
 
 - Connect a single markdown checklist file like `todo.md`
@@ -45,6 +43,8 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 ![Files](src/images/files.png)
 
 ![Project folders](src/images/md-files.png)
+
+![Dark mode](src/images/dark.png)
 
 ## Permissions
 You will be asked to give permission to this app to edit your MD files
