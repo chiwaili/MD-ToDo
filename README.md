@@ -117,6 +117,7 @@ Then open the served page in a supported browser.
 
 Contributions are welcome! Suggested improvements include:
 
+- better mobile support
 - richer markdown compatibility
 - better folder discovery logic
 - keyboard shortcuts and accessibility enhancements
