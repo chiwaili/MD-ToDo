@@ -6,6 +6,8 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 
 ## Features
 
+![Empty](src/images/empty.png)
+
 - Connect a single markdown checklist file like `todo.md`
 - Connect a project folder and auto-discover its markdown checklist file
 - Parse Markdown headings into kanban columns
@@ -16,6 +18,19 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 - Search tasks and tags
 - Persist file/folder handles across reloads using IndexedDB
 - 100% offline/local file storage, no external server required
+
+
+## Run locally
+
+### Method 1. Just double click on ```start.command```
+
+### Method 2. From the project root:
+
+```bash
+./start.command
+```
+
+
 
 ## How it works
 
@@ -37,8 +52,6 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 - Tags are extracted from `#tag-name` tokens in task text.
 
 ## Screenshots
-
-![Empty](src/images/empty.png)
 
 ![Files](src/images/files.png)
 
@@ -69,21 +82,6 @@ You will be asked to give permission to this app to edit your MD files
 - Opera
 
 It must be served over HTTP (or localhost) rather than opened as a raw `file://` page.
-
-## Run locally
-
-From the project root:
-
-```bash
-./start.command
-```
-
-or manually:
-
-```bash
-cd /Users/chiwaili/Desktop/dev/md-todo
-python3 -m http.server 8000
-```
 
 Then open the served page in a supported browser.
 
