@@ -22,15 +22,32 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 
 ## Run locally
 
-### Method 1. Just double click on ```start.command```
+### macOS
 
-### Method 2. From the project root:
+1. Double-click `start.command`.
+2. It will launch a local server and open the app in your browser.
 
-```bash
-./start.command
+### Windows
+
+1. Open PowerShell or Command Prompt in the project root.
+2. Run one of the following commands:
+
+```powershell
+python -m http.server 8000
 ```
 
+or, if you have Node installed:
 
+```powershell
+npx http-server .
+```
+
+3. Open `http://localhost:8000` in Chrome, Edge, or Opera.
+
+### Notes
+
+- `start.command` is a macOS helper script only.
+- The app requires a Chromium-based browser with File System Access API support.
 
 ## How it works
 
