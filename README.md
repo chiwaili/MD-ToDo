@@ -4,9 +4,9 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 
 `md-todo` lets you connect markdown checklist files or project folders and view them as a drag-and-drop kanban board in the browser. Changes are saved directly back to your local markdown file using the browser File System Access API.
 
-## Features
+![The what](src/images/the-what.png)
 
-![Empty](src/images/empty.png)
+## Features
 
 - Connect a single markdown checklist file like `todo.md`
 - Connect a project folder and auto-discover its markdown checklist file
@@ -16,9 +16,9 @@ A lightweight offline Markdown Kanban board for local todo checklists.
 - Edit task title, description, tags, and subtasks in a modal
 - Hide completed tasks
 - Search tasks and tags
-- Persist file/folder handles across reloads using IndexedDB
 - 100% offline/local file storage, no external server required
 
+![Empty](src/images/empty.png)
 
 ## Run locally
 
@@ -79,15 +79,16 @@ npx http-server .
 ## Permissions
 You will be asked to give permission to this app to edit your MD files
 
-### Files
-![Permission to end files](src/images/md-todo-permission-1.png)
+Don't worry if you see these pop ups, they are expected.
 
-![Close file warning](src/images/md-todo-permission-2.png)
+<img alt="Permission to end files" src="src/images/md-todo-permission-1.png" width="220"/>
 
-### Folders
-![Permission for folder access](src/images/md-todo-permission-3A.png)
+<img alt="Close file warning" src="src/images/md-todo-permission-2.png" width="220"/>
 
-![Permission to edit files](src/images/md-todo-permission-3B.png)
+<img alt="Permission for folder access" src="src/images/md-todo-permission-3A.png" width="220"/>
+
+<img alt="Permission to edit files" src="src/images/md-todo-permission-3B.png" width="220"/>
+
 
 
 ## Browser support
