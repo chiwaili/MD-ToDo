@@ -153,6 +153,19 @@
     </div>
   </div>
 
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="confirm-delete-modal">
+    <div class="modal-content confirm-modal-content" role="dialog" aria-modal="true">
+      <p>You are about to delete this item</p>
+      <p id="confirm-delete-title" class="confirm-delete-title"></p>
+      <p id="confirm-delete-subtask-warning" class="confirm-delete-subtask-warning"></p>
+      <div class="confirm-modal-actions">
+        <button id="confirm-delete-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button id="confirm-delete-btn" class="btn btn-danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Main Script Loading -->
   <script type="module" src="src/main.js"></script>
 </body>

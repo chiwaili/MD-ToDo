@@ -1,12 +1,13 @@
-import { 
-  state, 
-  getProjectColor, 
-  saveProjectToDisk, 
-  renderApp 
+import {
+  state,
+  getProjectColor,
+  saveProjectToDisk,
+  renderApp
 } from '../main.js';
-import { openModal } from './modal.js';
+import { openModal, showDeleteConfirm } from './modal.js';
 import { selectFile, selectDirectory } from '../file-system.js';
 import { addProjectHandle } from '../main.js';
+
 
 const STANDARD_COLUMNS = ['backlog', 'todo', 'in progress', 'doing', 'review', 'done', 'completed'];
 
@@ -325,7 +326,17 @@ function renderTaskCard(task, project, colName) {
   projectPill.textContent = project.label;
   projectPill.title = `${project.label} (${project.name})`;
   
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'card-delete-btn';
+  deleteBtn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>`;
+  deleteBtn.title = 'Delete task';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showDeleteConfirm(task, project, colName);
+  });
+
   header.appendChild(projectPill);
+  header.appendChild(deleteBtn);
   card.appendChild(header);
   
   // Title

@@ -1,14 +1,61 @@
-import { 
-  state, 
-  getProjectColor, 
-  saveProjectToDisk, 
-  renderApp 
+import {
+  state,
+  getProjectColor,
+  saveProjectToDisk,
+  renderApp
 } from '../main.js';
 
 let activeTask = null;
-let activeProjectId = null; // Storing projectId instead of projectName
+let activeProjectId = null;
 let activeColumnName = null;
 let isCreatingNew = false;
+
+let pendingDelete = null;
+
+export function initConfirmDeleteModal() {
+  const modal = document.getElementById('confirm-delete-modal');
+  const cancelBtn = document.getElementById('confirm-delete-cancel-btn');
+  const deleteBtn = document.getElementById('confirm-delete-btn');
+  if (!modal) return;
+
+  const close = () => {
+    modal.classList.remove('open');
+    pendingDelete = null;
+  };
+
+  cancelBtn.addEventListener('click', close);
+  modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('open')) close();
+  });
+
+  deleteBtn.addEventListener('click', async () => {
+    if (!pendingDelete) return;
+    const { task, project, colName, onAfterDelete } = pendingDelete;
+    const col = project.data.columns.find(c => c.name === colName);
+    if (col) {
+      col.tasks = col.tasks.filter(t => t.id !== task.id);
+      await saveProjectToDisk(project);
+      renderApp();
+    }
+    if (onAfterDelete) onAfterDelete();
+    close();
+  });
+}
+
+export function showDeleteConfirm(task, project, colName, onAfterDelete) {
+  pendingDelete = { task, project, colName, onAfterDelete };
+  const titleEl = document.getElementById('confirm-delete-title');
+  if (titleEl) titleEl.textContent = task.title.replace(/#[\w-]+/g, '').trim();
+  const warningEl = document.getElementById('confirm-delete-subtask-warning');
+  if (warningEl) {
+    const unfinished = task.subtasks ? task.subtasks.filter(s => !s.completed).length : 0;
+    warningEl.textContent = unfinished > 0
+      ? `This item has ${unfinished} unfinished subtask${unfinished > 1 ? 's' : ''}.`
+      : '';
+  }
+  document.getElementById('confirm-delete-modal').classList.add('open');
+}
 
 /**
  * Initializes modal DOM event listeners.
@@ -47,23 +94,15 @@ export function initModal() {
     }
   });
   
-  deleteBtn.addEventListener('click', async () => {
+  deleteBtn.addEventListener('click', () => {
     if (isCreatingNew) {
       closeModal();
       return;
     }
-    
-    if (confirm('Are you sure you want to delete this task? This will remove it from your markdown file.')) {
-      const project = state.projects.find(p => p.id === activeProjectId);
-      if (project) {
-        const col = project.data.columns.find(c => c.name === activeColumnName);
-        if (col) {
-          col.tasks = col.tasks.filter(t => t.id !== activeTask.id);
-          await saveProjectToDisk(project);
-          renderApp();
-        }
-      }
-      closeModal();
+
+    const project = state.projects.find(p => p.id === activeProjectId);
+    if (project) {
+      showDeleteConfirm(activeTask, project, activeColumnName, closeModal);
     }
   });
   
