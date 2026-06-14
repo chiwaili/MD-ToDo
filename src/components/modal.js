@@ -125,7 +125,14 @@ export function initModal() {
       const chk = row.querySelector('input[type="checkbox"]').checked;
       const text = row.querySelector('input[type="text"]').value.trim();
       if (text) {
-        subtasks.push({ title: text, completed: chk });
+        subtasks.push({
+          title: text,
+          completed: chk,
+          listType: row.dataset.listType || 'bullet',
+          hasCheckbox: row.dataset.hasCheckbox === 'true',
+          indent: row.dataset.indent || '  ',
+          bulletChar: row.dataset.bulletChar || '-'
+        });
       }
     });
     
@@ -156,9 +163,13 @@ export function initModal() {
   });
 }
 
-function createSubtaskRow(title, completed) {
+function createSubtaskRow(title, completed, listType = 'bullet', hasCheckbox = true, indent = '  ', bulletChar = '-') {
   const row = document.createElement('div');
   row.className = 'subtask-edit-item';
+  row.dataset.listType = listType;
+  row.dataset.hasCheckbox = hasCheckbox;
+  row.dataset.indent = indent;
+  row.dataset.bulletChar = bulletChar;
   
   const chk = document.createElement('input');
   chk.type = 'checkbox';
@@ -230,7 +241,7 @@ export function openModal(task, projectId, columnName, isNew = false) {
   
   if (task.subtasks && task.subtasks.length > 0) {
     task.subtasks.forEach(sub => {
-      sublist.appendChild(createSubtaskRow(sub.title, sub.completed));
+      sublist.appendChild(createSubtaskRow(sub.title, sub.completed, sub.listType, sub.hasCheckbox, sub.indent, sub.bulletChar));
     });
   }
   
