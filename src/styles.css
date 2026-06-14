@@ -760,6 +760,32 @@ code {
   gap: 8px;
 }
 
+.card-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.task-card:hover .card-delete-btn {
+  opacity: 1;
+}
+
+.card-delete-btn:hover {
+  background: var(--color-danger, #e53e3e);
+  color: #fff;
+}
+
 .project-pill {
   font-size: 0.65rem;
   font-weight: 700;
@@ -964,6 +990,40 @@ code {
 
 .modal-overlay.open .modal-content {
   transform: scale(1);
+}
+
+.confirm-modal-content {
+  max-width: 380px;
+  padding: 28px 24px 24px;
+  text-align: center;
+  gap: 20px;
+}
+
+.confirm-modal-content p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.confirm-modal-content .confirm-delete-title {
+  font-weight: 700;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.confirm-modal-content .confirm-delete-subtask-warning {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: hsl(25, 90%, 55%);
+  min-height: 0;
+}
+
+.confirm-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 4px;
 }
 
 .modal-header {

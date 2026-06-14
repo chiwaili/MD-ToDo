@@ -10,7 +10,7 @@ import {
 import { parseMarkdown, compileMarkdown } from './parser.js';
 import { renderSidebar } from './components/sidebar.js';
 import { renderBoard } from './components/kanban.js';
-import { initModal } from './components/modal.js';
+import { initModal, initConfirmDeleteModal } from './components/modal.js';
 
 // Central State (Version 2 with unique IDs and folder support)
 export const state = {
@@ -278,7 +278,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   initModal();
-  
+  initConfirmDeleteModal();
+
   // Restore projects from IndexedDB
   try {
     const storedProjects = await getStoredProjects();
