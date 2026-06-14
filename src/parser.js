@@ -13,27 +13,52 @@ export function parseMarkdown(text, fileName = 'Untitled') {
   const columns = [];
   const preamble = [];
   const postamble = [];
-  
+
   let currentColumn = null;
   let currentTask = null;
-  
+
   const headingRegex = /^(#{1,6})\s+(.*)$/;
-  const taskRegex = /^(\s*)[-*]\s+\[([ xX])\]\s+(.*)$/;
-  
+
+  function matchTaskLine(line) {
+    let m;
+    // Bullet with checkbox: - [ ] or * [ ]
+    m = line.match(/^(\s*)([-*])\s+\[([ xX])\]\s+(.*)$/);
+    if (m) return { indent: m[1], listType: 'bullet', bulletChar: m[2], hasCheckbox: true, completed: m[3].toLowerCase() === 'x', title: m[4] };
+    // Numeric with checkbox: 1. [ ]
+    m = line.match(/^(\s*)(\d+)\.\s+\[([ xX])\]\s+(.*)$/);
+    if (m) return { indent: m[1], listType: 'numeric', hasCheckbox: true, completed: m[3].toLowerCase() === 'x', title: m[4] };
+    // Alpha-lower with checkbox: a. [ ]
+    m = line.match(/^(\s*)([a-z])\.\s+\[([ xX])\]\s+(.*)$/);
+    if (m) return { indent: m[1], listType: 'alpha-lower', hasCheckbox: true, completed: m[3].toLowerCase() === 'x', title: m[4] };
+    // Alpha-upper with checkbox: A. [ ]
+    m = line.match(/^(\s*)([A-Z])\.\s+\[([ xX])\]\s+(.*)$/);
+    if (m) return { indent: m[1], listType: 'alpha-upper', hasCheckbox: true, completed: m[3].toLowerCase() === 'x', title: m[4] };
+    // Numeric without checkbox: 1. Task
+    m = line.match(/^(\s*)(\d+)\.\s+(?!\[)(.+)$/);
+    if (m) return { indent: m[1], listType: 'numeric', hasCheckbox: false, completed: false, title: m[3] };
+    // Alpha-lower without checkbox: a. Task
+    m = line.match(/^(\s*)([a-z])\.\s+(?!\[)(.+)$/);
+    if (m) return { indent: m[1], listType: 'alpha-lower', hasCheckbox: false, completed: false, title: m[3] };
+    // Alpha-upper without checkbox: A. Task
+    m = line.match(/^(\s*)([A-Z])\.\s+(?!\[)(.+)$/);
+    if (m) return { indent: m[1], listType: 'alpha-upper', hasCheckbox: false, completed: false, title: m[3] };
+    return null;
+  }
+
   // Check if there are any headings in the file
   const hasHeadings = lines.some(line => headingRegex.test(line));
-  
+
   // Check if we have level 2 (or lower) headings in the file
   const hasLevel2Headings = lines.some(line => {
     const m = line.match(headingRegex);
     return m && m[1].length >= 2;
   });
-  
-  function createTaskObject(rawTitle, completed, indentLevel) {
+
+  function createTaskObject(rawTitle, completed, indentLevel, listType = 'bullet', hasCheckbox = true, bulletChar = '-') {
     let title = rawTitle.trim();
     let inlineDescription = '';
     let hadBoldTitle = false;
-    
+
     // Check for bold title format: **Title** description
     const boldMatch = title.match(/^\*\*(.*?)\*\*(.*)$/);
     if (boldMatch) {
@@ -41,22 +66,20 @@ export function parseMarkdown(text, fileName = 'Untitled') {
       inlineDescription = boldMatch[2].trim();
       hadBoldTitle = true;
     }
-    
+
     // Extract tags: #tag-name
     const tags = [];
     const tagRegex = /#([\w-]+)/g;
     let match;
-    
-    // We extract tags from the full text (rawTitle) to check both title and inline description
     while ((match = tagRegex.exec(rawTitle)) !== null) {
       tags.push('#' + match[1]);
     }
-    
+
     const description = [];
     if (inlineDescription) {
       description.push(inlineDescription);
     }
-    
+
     return {
       id: Math.random().toString(36).substring(2, 9),
       title,
@@ -65,21 +88,21 @@ export function parseMarkdown(text, fileName = 'Untitled') {
       subtasks: [],
       tags,
       indentLevel,
-      hadBoldTitle
+      hadBoldTitle,
+      listType,
+      hasCheckbox,
+      bulletChar
     };
   }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
-    // Skip completely empty lines inside columns or postamble to prevent clogging,
-    // but handle them gracefully.
+
     if (line.trim() === '') {
       if (currentTask) {
-        // We can treat empty lines under a task as description paragraph breaks
         currentTask.description.push('');
       } else if (currentColumn) {
-        // Empty lines under a column (but not a task) are ignored or put in postamble
+        // ignored
       } else {
         preamble.push(line);
       }
@@ -87,11 +110,11 @@ export function parseMarkdown(text, fileName = 'Untitled') {
     }
 
     const headingMatch = line.match(headingRegex);
-    let taskMatch = line.match(taskRegex);
+    const taskInfo = matchTaskLine(line);
     const isIndented = /^\s+/.test(line);
-    
-    // If it's a non-indented line (and not a heading/task), it ends the task context
-    if (currentTask && !isIndented && !headingMatch && !taskMatch) {
+
+    // Non-indented, non-heading, non-task line ends the current task context
+    if (currentTask && !isIndented && !headingMatch && !taskInfo) {
       while (currentTask.description.length > 0 && currentTask.description[currentTask.description.length - 1] === '') {
         currentTask.description.pop();
         postamble.push('');
@@ -107,89 +130,76 @@ export function parseMarkdown(text, fileName = 'Untitled') {
         }
         currentTask = null;
       }
-      
+
       const level = headingMatch[1].length;
       const name = headingMatch[2].trim();
-      
-      // If we have level 2+ headings, treat any level 1 heading at the top as preamble
+
       if (level === 1 && hasLevel2Headings && columns.length === 0) {
         preamble.push(line);
         continue;
       }
-      
-      currentColumn = {
-        name,
-        level,
-        tasks: []
-      };
+
+      currentColumn = { name, level, tasks: [] };
       columns.push(currentColumn);
       currentTask = null;
       continue;
     }
-    
-    taskMatch = line.match(taskRegex);
-    if (taskMatch) {
-      const indent = taskMatch[1].length;
-      const completed = taskMatch[2].toLowerCase() === 'x';
-      const title = taskMatch[3];
-      
-      // Check if it's a subtask (it is indented and we have an active task)
+
+    if (taskInfo) {
+      const indent = taskInfo.indent.length;
+      const { completed, title, listType, hasCheckbox, bulletChar = '-' } = taskInfo;
+
       if (currentTask && indent > currentTask.indentLevel) {
         currentTask.subtasks.push({
           title: title.trim(),
-          completed
+          completed,
+          listType,
+          hasCheckbox,
+          bulletChar,
+          indent: taskInfo.indent
         });
       } else {
-        // It's a main task
-        currentTask = createTaskObject(title, completed, indent);
-        
+        currentTask = createTaskObject(title, completed, indent, listType, hasCheckbox, bulletChar);
+
         if (currentColumn) {
           currentColumn.tasks.push(currentTask);
-        } else {
-          // If no heading is found yet:
-          if (!hasHeadings) {
-            // Group under Todo / Done columns implicitly
-            const defaultColName = completed ? 'Done' : 'Todo';
-            let col = columns.find(c => c.name === defaultColName);
-            if (!col) {
-              col = { name: defaultColName, level: 2, tasks: [] };
-              columns.push(col);
-            }
-            col.tasks.push(currentTask);
-          } else {
-            // Put in a default "Backlog" column
-            let backlogCol = columns.find(c => c.name === 'Backlog');
-            if (!backlogCol) {
-              backlogCol = { name: 'Backlog', level: 2, tasks: [] };
-              columns.unshift(backlogCol); // Add to the beginning
-            }
-            backlogCol.tasks.push(currentTask);
+        } else if (!hasHeadings) {
+          const defaultColName = completed ? 'Done' : 'Todo';
+          let col = columns.find(c => c.name === defaultColName);
+          if (!col) {
+            col = { name: defaultColName, level: 2, tasks: [] };
+            columns.push(col);
           }
+          col.tasks.push(currentTask);
+        } else {
+          let backlogCol = columns.find(c => c.name === 'Backlog');
+          if (!backlogCol) {
+            backlogCol = { name: 'Backlog', level: 2, tasks: [] };
+            columns.unshift(backlogCol);
+          }
+          backlogCol.tasks.push(currentTask);
         }
       }
       continue;
     }
-    
-    // Check if it's an indented description line
+
+    // Indented description line
     if (currentTask && (line.match(/^\s+/) || currentTask.description.length > 0)) {
-      // Remove leading spaces matching the task's indentation hierarchy
       const spacesToTrim = currentTask.indentLevel + 2;
-      const trimmed = line.startsWith(' '.repeat(spacesToTrim)) 
-        ? line.substring(spacesToTrim) 
+      const trimmed = line.startsWith(' '.repeat(spacesToTrim))
+        ? line.substring(spacesToTrim)
         : line.trim();
-        
       currentTask.description.push(trimmed);
       continue;
     }
-    
-    // Plain text falls into preamble or postamble
+
     if (columns.length === 0) {
       preamble.push(line);
     } else {
       postamble.push(line);
     }
   }
-  
+
   // Cleanup descriptions: remove trailing empty lines
   columns.forEach(col => {
     col.tasks.forEach(task => {
@@ -198,9 +208,8 @@ export function parseMarkdown(text, fileName = 'Untitled') {
       }
     });
   });
-  
-  // Extract project name from file name
-  const title = fileName.replace(/\.[^/.]+$/, "")
+
+  const title = fileName.replace(/\.[^/.]+$/, '')
                         .replace(/[_-]/g, ' ')
                         .replace(/\b\w/g, c => c.toUpperCase());
 
@@ -214,101 +223,79 @@ export function parseMarkdown(text, fileName = 'Untitled') {
 }
 
 /**
- * Compiles a ProjectData object back into a standard markdown string.
+ * Compiles a ProjectData object back into a markdown string,
+ * preserving the original list format (bullet / numeric / alpha).
  * @param {object} data - The project data.
  * @returns {string} The markdown content.
  */
 export function compileMarkdown(data) {
   const lines = [];
-  
+
+  function getMarker(listType, index, bulletChar) {
+    if (listType === 'numeric') return `${index + 1}.`;
+    if (listType === 'alpha-lower') return `${String.fromCharCode(97 + index)}.`;
+    if (listType === 'alpha-upper') return `${String.fromCharCode(65 + index)}.`;
+    return bulletChar || '-';
+  }
+
+  function taskLine(indentStr, marker, hasCheckbox, completed, title) {
+    const checkbox = (hasCheckbox || completed) ? `[${completed ? 'x' : ' '}] ` : '';
+    return `${indentStr}${marker} ${checkbox}${title}`;
+  }
+
+  function writeTask(task, taskIdx) {
+    const listType = task.listType || 'bullet';
+    const marker = getMarker(listType, taskIdx, task.bulletChar);
+    const useBold = task.hadBoldTitle;
+
+    if (useBold) {
+      const firstDesc = (task.description && task.description.length > 0) ? ' ' + task.description[0] : '';
+      const checkbox = (task.hasCheckbox || task.completed) ? `[${task.completed ? 'x' : ' '}] ` : '';
+      lines.push(`${marker} ${checkbox}**${task.title}**${firstDesc}`);
+      if (task.description && task.description.length > 1) {
+        task.description.slice(1).forEach(descLine => lines.push(`  ${descLine}`));
+      }
+    } else {
+      lines.push(taskLine('', marker, task.hasCheckbox ?? true, task.completed, task.title));
+    }
+
+    if (task.subtasks && task.subtasks.length > 0) {
+      task.subtasks.forEach((sub, subIdx) => {
+        const subListType = sub.listType || 'bullet';
+        const subMarker = getMarker(subListType, subIdx, sub.bulletChar);
+        const subIndent = sub.indent || '  ';
+        lines.push(taskLine(subIndent, subMarker, sub.hasCheckbox ?? true, sub.completed, sub.title));
+      });
+    }
+  }
+
   // 1. Preamble
   if (data.preamble && data.preamble.length > 0) {
     lines.push(...data.preamble);
-    // Add spacer if there are columns
     if (data.columns.length > 0) lines.push('');
   }
-  
-  // Determine if we should compile with headings
+
   const hasHeadings = data.hasHeadings || data.columns.length > 2 || (data.columns.length > 0 && !['Todo', 'Done'].includes(data.columns[0].name));
-  
+
   if (hasHeadings) {
     data.columns.forEach((col, colIdx) => {
-      // Add heading
-      const hashes = '#'.repeat(col.level || 2);
-      lines.push(`${hashes} ${col.name}`);
-      
-      // Add tasks
-      col.tasks.forEach(task => {
-        const check = task.completed ? 'x' : ' ';
-        const useBold = task.hadBoldTitle;
-        
-        if (useBold) {
-          const firstDesc = (task.description && task.description.length > 0) ? ' ' + task.description[0] : '';
-          lines.push(`- [${check}] **${task.title}**${firstDesc}`);
-          
-          // Add subsequent description lines
-          if (task.description && task.description.length > 1) {
-            task.description.slice(1).forEach(descLine => {
-              lines.push(`  ${descLine}`);
-            });
-          }
-        } else {
-          lines.push(`- [${check}] ${task.title}`);
-        }
-        
-        // Add subtasks
-        if (task.subtasks && task.subtasks.length > 0) {
-          task.subtasks.forEach(sub => {
-            const subCheck = sub.completed ? 'x' : ' ';
-            lines.push(`  - [${subCheck}] ${sub.title}`);
-          });
-        }
-      });
-      
-      // Spacer between columns (but not after the last one if there is no postamble)
+      lines.push(`${'#'.repeat(col.level || 2)} ${col.name}`);
+      col.tasks.forEach((task, taskIdx) => writeTask(task, taskIdx));
       if (colIdx < data.columns.length - 1 || (data.postamble && data.postamble.length > 0)) {
         lines.push('');
       }
     });
   } else {
-    // Compile simple checkbox list without headers
     data.columns.forEach(col => {
-      col.tasks.forEach(task => {
-        const check = task.completed ? 'x' : ' ';
-        const useBold = task.hadBoldTitle || (task.description && task.description.length > 0);
-        
-        if (useBold) {
-          const firstDesc = (task.description && task.description.length > 0) ? ' ' + task.description[0] : '';
-          lines.push(`- [${check}] **${task.title}**${firstDesc}`);
-          
-          if (task.description && task.description.length > 1) {
-            task.description.slice(1).forEach(descLine => {
-              lines.push(`  ${descLine}`);
-            });
-          }
-        } else {
-          lines.push(`- [${check}] ${task.title}`);
-        }
-        
-        if (task.subtasks && task.subtasks.length > 0) {
-          task.subtasks.forEach(sub => {
-            const subCheck = sub.completed ? 'x' : ' ';
-            lines.push(`  - [${subCheck}] ${sub.title}`);
-          });
-        }
-      });
+      col.tasks.forEach((task, taskIdx) => writeTask(task, taskIdx));
     });
   }
-  
+
   // 3. Postamble
   if (data.postamble && data.postamble.length > 0) {
-    // Add separator spacer if needed
-    if (lines.length > 0 && lines[lines.length - 1] !== '') {
-      lines.push('');
-    }
+    if (lines.length > 0 && lines[lines.length - 1] !== '') lines.push('');
     lines.push(...data.postamble);
   }
-  
-  // Ensure exactly one trailing newline
+
   return lines.join('\n').trim() + '\n';
 }
