@@ -95,6 +95,15 @@ export function parseMarkdown(text, fileName = 'Untitled') {
     };
   }
 
+  function createColumnObject(name, level = 2) {
+    return {
+      id: Math.random().toString(36).substring(2, 9),
+      name,
+      level,
+      tasks: []
+    };
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
@@ -139,7 +148,7 @@ export function parseMarkdown(text, fileName = 'Untitled') {
         continue;
       }
 
-      currentColumn = { name, level, tasks: [] };
+      currentColumn = createColumnObject(name, level);
       columns.push(currentColumn);
       currentTask = null;
       continue;
@@ -167,14 +176,14 @@ export function parseMarkdown(text, fileName = 'Untitled') {
           const defaultColName = completed ? 'Done' : 'Todo';
           let col = columns.find(c => c.name === defaultColName);
           if (!col) {
-            col = { name: defaultColName, level: 2, tasks: [] };
+            col = createColumnObject(defaultColName, 2);
             columns.push(col);
           }
           col.tasks.push(currentTask);
         } else {
           let backlogCol = columns.find(c => c.name === 'Backlog');
           if (!backlogCol) {
-            backlogCol = { name: 'Backlog', level: 2, tasks: [] };
+            backlogCol = createColumnObject('Backlog', 2);
             columns.unshift(backlogCol);
           }
           backlogCol.tasks.push(currentTask);
