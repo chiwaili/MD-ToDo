@@ -542,6 +542,10 @@ code {
   font-size: 0.95rem;
 }
 
+.tool-card--danger {
+  border-color: color-mix(in srgb, var(--color-danger, #e53e3e) 30%, var(--border-color));
+}
+
 .tools-note {
   margin-top: 12px;
   color: var(--text-muted);

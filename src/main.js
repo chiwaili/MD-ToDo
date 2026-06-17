@@ -172,9 +172,34 @@ async function mergeDuplicateItemsWithinColumns() {
   return { totalProjects: activeProjects.length, mergedColumns, mergedTasks };
 }
 
+async function deleteAllDoneItems() {
+  const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id) && p.permissionGranted);
+  let deletedTasks = 0;
+  let affectedProjects = 0;
+
+  for (const project of activeProjects) {
+    let projectChanged = false;
+
+    project.data.columns.forEach(column => {
+      if (normalizeHeaderKey(column.name) === 'done') {
+        deletedTasks += column.tasks.length;
+        column.tasks = [];
+        projectChanged = true;
+      }
+    });
+
+    if (projectChanged) {
+      await saveProjectToDisk(project);
+      affectedProjects += 1;
+    }
+  }
+
+  return { totalProjects: activeProjects.length, deletedTasks, affectedProjects };
+}
+
 /**
  * Saves a project back to its local disk file (resolving directory files if necessary).
- * @param {object} project 
+ * @param {object} project
  */
 export async function saveProjectToDisk(project) {
   let fileHandle = null;
@@ -443,6 +468,26 @@ async function initializeApp() {
         alert('No checked tasks were found in the selected projects.');
       }
 
+      renderApp();
+    });
+  }
+
+  const deleteDoneBtn = document.getElementById('delete-done-btn');
+  if (deleteDoneBtn) {
+    deleteDoneBtn.addEventListener('click', async () => {
+      const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id) && p.permissionGranted);
+      if (activeProjects.length === 0) {
+        alert('Select an active project first.');
+        return;
+      }
+      const confirmed = confirm('Delete all items in the Done column? This cannot be undone.');
+      if (!confirmed) return;
+      const result = await deleteAllDoneItems();
+      if (result.deletedTasks === 0) {
+        alert('No done items found in the selected projects.');
+      } else {
+        alert(`Deleted ${result.deletedTasks} done item(s) across ${result.affectedProjects} project(s).`);
+      }
       renderApp();
     });
   }
