@@ -80,11 +80,38 @@
             <span class="toggle-slider"></span>
             <span class="toggle-label">Hide Completed</span>
           </label>
+          <button type="button" id="tools-btn" class="btn btn-secondary" title="Open tools panel">Tools</button>
           <div id="task-stats" class="task-stats">
             <!-- Dynamically populated -->
             <span class="stats-badge">0 / 0 Done</span>
           </div>
         </div>
+      </header>
+
+      <aside class="tools-panel" id="tools-panel" aria-hidden="true">
+        <div class="tools-panel-header">
+          <h2>Tools</h2>
+          <button type="button" id="close-tools-btn" class="btn-text" title="Close tools panel">×</button>
+        </div>
+        <div class="tools-panel-content">
+          <div class="tool-card">
+            <h3>Merge duplicate headers</h3>
+            <p>Combine columns that use the same heading across selected projects.</p>
+            <button id="merge-headers-btn" class="btn btn-secondary">Merge duplicate headers</button>
+          </div>
+          <div class="tool-card">
+            <h3>Merge duplicate items</h3>
+            <p>Remove duplicate cards with identical content within each column.</p>
+            <button id="merge-items-btn" class="btn btn-secondary">Merge duplicate items</button>
+          </div>
+          <div class="tool-card">
+            <h3>Move checked to Done</h3>
+            <p>Move all completed tasks into the Done column for your selected projects.</p>
+            <button id="move-checked-btn" class="btn btn-secondary">Move checked to Done</button>
+          </div>
+          <p class="tools-note">No undo is available for these actions.</p>
+        </div>
+      </aside>
       </header>
 
       <!-- Kanban Board Container -->

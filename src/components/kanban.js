@@ -8,8 +8,11 @@ import { openModal, showDeleteConfirm } from './modal.js';
 import { selectFile, selectDirectory } from '../file-system.js';
 import { addProjectHandle } from '../main.js';
 
-
 const STANDARD_COLUMNS = ['backlog', 'todo', 'in progress', 'doing', 'review', 'done', 'completed'];
+
+function normalizeHeaderKey(name) {
+  return name ? name.trim().toLowerCase() : '';
+}
 
 /**
  * Helper to sort column names logically
@@ -50,18 +53,23 @@ export function renderBoard() {
   }
   
   // 2. Gather unique columns across all active, authorized projects
-  const columnMap = new Map(); // Name -> Array of tasks { task, project }
+  const columnMap = new Map();
   
   activeProjects.forEach(project => {
     if (!project.permissionGranted) return;
     
     project.data.columns.forEach(col => {
-      const colName = col.name;
-      if (!columnMap.has(colName)) {
-        columnMap.set(colName, {
+      const key = normalizeHeaderKey(col.name);
+      if (!columnMap.has(key)) {
+        columnMap.set(key, {
+          id: key,
+          name: col.name,
           level: col.level || 2,
+          sourceColumnIds: [col.id],
           tasks: []
         });
+      } else {
+        columnMap.get(key).sourceColumnIds.push(col.id);
       }
       
       col.tasks.forEach(task => {
@@ -82,37 +90,43 @@ export function renderBoard() {
           return; // Skip if completed
         }
         
-        columnMap.get(colName).tasks.push({
+        columnMap.get(key).tasks.push({
           task,
-          project
+          project,
+          sourceColumnId: col.id,
+          sourceColumnName: col.name
         });
       });
     });
   });
   
-  // Gather unique column names in their natural file order across all active projects
-  const sortedColumnNames = [];
+  // Gather column keys in their natural file order across all active projects
+  const sortedColumnKeys = [];
   activeProjects.forEach(project => {
     if (!project.permissionGranted) return;
     project.data.columns.forEach(col => {
-      if (!sortedColumnNames.includes(col.name)) {
-        sortedColumnNames.push(col.name);
+      const key = normalizeHeaderKey(col.name);
+      if (!sortedColumnKeys.includes(key)) {
+        sortedColumnKeys.push(key);
       }
     });
   });
   
-  if (sortedColumnNames.length === 0) {
+  if (sortedColumnKeys.length === 0) {
     renderEmptyState(boardContainer, 'empty-projects');
     return;
   }
   
   // 3. Render Columns
-  sortedColumnNames.forEach(colName => {
-    const colData = columnMap.get(colName);
+  sortedColumnKeys.forEach(columnKey => {
+    const colData = columnMap.get(columnKey);
+    const visibleName = colData.name;
+    const colId = colData.id || colData.sourceColumnIds[0] || '';
     
     const colEl = document.createElement('div');
     colEl.className = 'board-column';
-    colEl.dataset.column = colName;
+    colEl.dataset.columnId = colId;
+    colEl.dataset.columnName = visibleName;
     
     // Header
     const headerEl = document.createElement('div');
@@ -126,8 +140,8 @@ export function renderBoard() {
     
     const title = document.createElement('span');
     title.className = 'column-title';
-    title.textContent = colName;
-    title.title = colName;
+    title.textContent = visibleName;
+    title.title = visibleName;
     
     // Double click to rename column
     title.addEventListener('dblclick', (e) => {
@@ -136,7 +150,7 @@ export function renderBoard() {
       
       const input = document.createElement('input');
       input.type = 'text';
-      input.value = colName;
+      input.value = visibleName;
       input.style.width = '120px';
       input.style.background = 'var(--bg-input)';
       input.style.border = '1px solid var(--color-primary)';
@@ -149,10 +163,10 @@ export function renderBoard() {
       const finishRename = async () => {
         const val = input.value.trim();
         titleWrapper.draggable = true;
-        if (val && val !== colName) {
-          await handleColumnRename(colName, val);
+        if (val && val !== visibleName) {
+          await handleColumnRename(colId, val);
         } else {
-          title.textContent = colName;
+          title.textContent = visibleName;
         }
       };
       
@@ -161,7 +175,7 @@ export function renderBoard() {
           evt.preventDefault();
           finishRename();
         } else if (evt.key === 'Escape') {
-          title.textContent = colName;
+          title.textContent = visibleName;
           titleWrapper.draggable = true;
         }
       });
@@ -187,7 +201,7 @@ export function renderBoard() {
     addBtn.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
     `;
-    addBtn.title = `Add task to ${colName}`;
+    addBtn.title = `Add task to ${visibleName}`;
     
     headerEl.appendChild(titleWrapper);
     headerEl.appendChild(addBtn);
@@ -199,7 +213,8 @@ export function renderBoard() {
       headerEl.classList.add('column-dragging');
       e.dataTransfer.setData('text/plain', JSON.stringify({
         type: 'column',
-        colName: colName
+        colId: colId,
+        colName: visibleName
       }));
       e.dataTransfer.effectAllowed = 'move';
     });
@@ -232,8 +247,8 @@ export function renderBoard() {
     cardsContainer.className = 'cards-container';
     
     // Render Cards
-    colData.tasks.forEach(({ task, project }) => {
-      const cardEl = renderTaskCard(task, project, colName);
+    colData.tasks.forEach(({ task, project, sourceColumnId, sourceColumnName }) => {
+      const cardEl = renderTaskCard(task, project, visibleName, sourceColumnId, sourceColumnName);
       cardsContainer.appendChild(cardEl);
     });
     
@@ -245,7 +260,7 @@ export function renderBoard() {
       const newTask = {
         id: Math.random().toString(36).substring(2, 9),
         title: '',
-        completed: colName.toLowerCase().trim() === 'done' || colName.toLowerCase().trim() === 'completed',
+        completed: visibleName.toLowerCase().trim() === 'done' || visibleName.toLowerCase().trim() === 'completed',
         description: [],
         subtasks: [],
         tags: [],
@@ -254,7 +269,8 @@ export function renderBoard() {
       
       const targetProj = activeProjects.find(p => p.permissionGranted);
       if (targetProj) {
-        openModal(newTask, targetProj.id, colName, true); // Pass ID instead of name
+        const targetCol = targetProj.data.columns.find(c => normalizeHeaderKey(c.name) === colId);
+        openModal(newTask, targetProj.id, targetCol ? targetCol.id : targetProj.data.columns[0]?.id, visibleName, true);
       }
     });
     
@@ -286,16 +302,18 @@ export function renderBoard() {
       if (!rawData) return;
       
       try {
-        const { taskId, projectId, sourceCol } = JSON.parse(rawData);
-        const targetColName = colName;
+        const { taskId, projectId, sourceCol, sourceColName } = JSON.parse(rawData);
+        const targetColId = colEl.dataset.columnId;
         
         const children = [...cardsContainer.querySelectorAll('.task-card')];
-        const targetIndex = children.findIndex(child => child.dataset.id === taskId);
+        const sameProjectChildren = children.filter(child => child.dataset.project === projectId);
+        const targetIndex = sameProjectChildren.findIndex(child => child.dataset.id === taskId);
         
-        if (sourceCol === targetColName) {
-          await handleTaskReorder(projectId, taskId, targetColName, targetIndex);
+        const sameLogicalColumn = sourceColName === colEl.dataset.columnName;
+        if (sameLogicalColumn) {
+          await handleTaskReorder(projectId, taskId, sourceCol, targetIndex);
         } else {
-          await handleTaskMove(projectId, taskId, sourceCol, targetColName, targetIndex);
+          await handleTaskMove(projectId, taskId, sourceCol, targetColId, colEl.dataset.columnName, targetIndex);
         }
       } catch (err) {
         console.error('Error handling drop:', err);
@@ -307,13 +325,14 @@ export function renderBoard() {
 /**
  * Renders a single task card element.
  */
-function renderTaskCard(task, project, colName) {
+function renderTaskCard(task, project, visibleColName, sourceColumnId) {
   const card = document.createElement('div');
   card.className = `task-card ${task.completed ? 'completed' : ''}`;
   card.draggable = true;
   card.dataset.id = task.id;
   card.dataset.project = project.id;
-  card.dataset.column = colName;
+  card.dataset.column = visibleColName;
+  card.dataset.columnId = sourceColumnId;
   
   // Header with project tag pill (using display label)
   const header = document.createElement('div');
@@ -332,7 +351,7 @@ function renderTaskCard(task, project, colName) {
   deleteBtn.title = 'Delete task';
   deleteBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    showDeleteConfirm(task, project, colName);
+    showDeleteConfirm(task, project, sourceColumnId);
   });
 
   header.appendChild(projectPill);
@@ -380,7 +399,7 @@ function renderTaskCard(task, project, colName) {
   
   // Edit click
   card.addEventListener('click', () => {
-    openModal(task, project.id, colName, false); // Pass ID instead of name
+    openModal(task, project.id, sourceColumnId, visibleColName, false);
   });
   
   // Drag start
@@ -389,7 +408,8 @@ function renderTaskCard(task, project, colName) {
     e.dataTransfer.setData('text/plain', JSON.stringify({
       taskId: task.id,
       projectId: project.id,
-      sourceCol: colName
+      sourceCol: sourceColumnId,
+      sourceColName: visibleColName
     }));
     e.dataTransfer.effectAllowed = 'move';
   });
@@ -421,11 +441,11 @@ function getDragAfterElement(container, y) {
 /**
  * Handles reordering within the same column
  */
-async function handleTaskReorder(projectId, taskId, colName, targetIndex) {
+async function handleTaskReorder(projectId, taskId, columnId, targetIndex) {
   const project = state.projects.find(p => p.id === projectId);
   if (!project) return;
   
-  const col = project.data.columns.find(c => c.name === colName);
+  const col = project.data.columns.find(c => c.id === columnId);
   if (!col) return;
   
   const taskIndex = col.tasks.findIndex(t => t.id === taskId);
@@ -443,14 +463,21 @@ async function handleTaskReorder(projectId, taskId, colName, targetIndex) {
 /**
  * Handles moving a task to a different column
  */
-async function handleTaskMove(projectId, taskId, sourceColName, targetColName, targetIndex) {
+async function handleTaskMove(projectId, taskId, sourceColumnId, targetColumnId, targetColumnName, targetIndex) {
   const project = state.projects.find(p => p.id === projectId);
   if (!project) return;
   
-  const sourceCol = project.data.columns.find(c => c.name === sourceColName);
-  const targetCol = project.data.columns.find(c => c.name === targetColName);
+  const sourceCol = project.data.columns.find(c => c.id === sourceColumnId);
+  let targetCol = project.data.columns.find(c => c.id === targetColumnId);
   
-  if (!sourceCol || !targetCol) return;
+  if (!targetCol && targetColumnName) {
+    targetCol = project.data.columns.find(c => c.name === targetColumnName);
+  }
+  
+  if (!sourceCol || !targetCol) {
+    console.warn('Target or source column not found for task move', sourceColumnId, targetColumnId, targetColumnName);
+    return;
+  }
   
   const taskIndex = sourceCol.tasks.findIndex(t => t.id === taskId);
   if (taskIndex === -1) return;
@@ -458,7 +485,7 @@ async function handleTaskMove(projectId, taskId, sourceColName, targetColName, t
   const [task] = sourceCol.tasks.splice(taskIndex, 1);
   
   // Set completion
-  task.completed = targetColName.toLowerCase().trim() === 'done' || targetColName.toLowerCase().trim() === 'completed';
+  task.completed = targetColumnName.toLowerCase().trim() === 'done' || targetColumnName.toLowerCase().trim() === 'completed';
   
   const insertIndex = targetIndex === -1 ? targetCol.tasks.length : targetIndex;
   targetCol.tasks.splice(insertIndex, 0, task);
@@ -545,8 +572,9 @@ function renderEmptyState(container, type) {
         const activeProj = state.projects.find(p => p.permissionGranted && state.selectedProjectIds.includes(p.id));
         if (activeProj) {
           if (activeProj.data.columns.length === 0) {
-            activeProj.data.columns.push({ name: 'Todo', level: 2, tasks: [] });
+            activeProj.data.columns.push({ id: Math.random().toString(36).substring(2, 9), name: 'Todo', level: 2, tasks: [] });
           }
+          const colId = activeProj.data.columns[0].id || Math.random().toString(36).substring(2, 9);
           const newTask = {
             id: Math.random().toString(36).substring(2, 9),
             title: '',
@@ -556,7 +584,7 @@ function renderEmptyState(container, type) {
             tags: [],
             indentLevel: 0
           };
-          openModal(newTask, activeProj.id, activeProj.data.columns[0].name, true);
+          openModal(newTask, activeProj.id, colId, activeProj.data.columns[0].name, true);
         }
       });
     }
@@ -570,14 +598,14 @@ async function handleColumnDragEnd() {
   const boardContainer = document.getElementById('board-container');
   if (!boardContainer) return;
   
-  const newOrder = [...boardContainer.querySelectorAll('.board-column')].map(el => el.dataset.column);
+  const newOrder = [...boardContainer.querySelectorAll('.board-column')].map(el => el.dataset.columnId);
   const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id));
   
   for (const project of activeProjects) {
     if (!project.permissionGranted) continue;
     project.data.columns.sort((a, b) => {
-      const idxA = newOrder.indexOf(a.name);
-      const idxB = newOrder.indexOf(b.name);
+      const idxA = newOrder.indexOf(normalizeHeaderKey(a.name));
+      const idxB = newOrder.indexOf(normalizeHeaderKey(b.name));
       const valA = idxA === -1 ? 999 : idxA;
       const valB = idxB === -1 ? 999 : idxB;
       return valA - valB;
@@ -591,12 +619,13 @@ async function handleColumnDragEnd() {
 /**
  * Handles column renaming across all active projects
  */
-async function handleColumnRename(oldName, newName) {
+async function handleColumnRename(oldKey, newName) {
   const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id));
+  const targetNameKey = normalizeHeaderKey(oldKey);
   
   for (const project of activeProjects) {
     if (!project.permissionGranted) continue;
-    const col = project.data.columns.find(c => c.name === oldName);
+    const col = project.data.columns.find(c => normalizeHeaderKey(c.name) === targetNameKey);
     if (col) {
       col.name = newName;
       await saveProjectToDisk(project);
@@ -604,4 +633,56 @@ async function handleColumnRename(oldName, newName) {
   }
   
   renderApp();
+}
+
+function normalizeDoneColumnName(name) {
+  return name.toLowerCase().trim();
+}
+
+function isDoneColumnName(name) {
+  const normalized = normalizeDoneColumnName(name);
+  return normalized === 'done' || normalized === 'completed';
+}
+
+function findOrCreateDoneColumn(project) {
+  let doneColumn = project.data.columns.find(c => isDoneColumnName(c.name));
+  if (!doneColumn) {
+    doneColumn = {
+      id: Math.random().toString(36).substring(2, 9),
+      name: 'Done',
+      level: 2,
+      tasks: []
+    };
+    project.data.columns.push(doneColumn);
+  }
+  return doneColumn;
+}
+
+export async function moveCheckedItemsToDone() {
+  const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id));
+  if (activeProjects.length === 0) {
+    return { totalMoved: 0, projectCount: 0 };
+  }
+
+  let totalMoved = 0;
+  for (const project of activeProjects) {
+    if (!project.permissionGranted) continue;
+    const doneColumn = findOrCreateDoneColumn(project);
+    let moved = false;
+    project.data.columns.forEach(col => {
+      if (col.id === doneColumn.id) return;
+      const completedTasks = col.tasks.filter(task => task.completed);
+      if (completedTasks.length > 0) {
+        moved = true;
+        totalMoved += completedTasks.length;
+        col.tasks = col.tasks.filter(task => !task.completed);
+        doneColumn.tasks.push(...completedTasks);
+      }
+    });
+    if (moved) {
+      await saveProjectToDisk(project);
+    }
+  }
+
+  return { totalMoved, projectCount: activeProjects.length };
 }

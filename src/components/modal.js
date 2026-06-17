@@ -7,6 +7,7 @@ import {
 
 let activeTask = null;
 let activeProjectId = null;
+let activeColumnId = null;
 let activeColumnName = null;
 let isCreatingNew = false;
 
@@ -31,8 +32,8 @@ export function initConfirmDeleteModal() {
 
   deleteBtn.addEventListener('click', async () => {
     if (!pendingDelete) return;
-    const { task, project, colName, onAfterDelete } = pendingDelete;
-    const col = project.data.columns.find(c => c.name === colName);
+    const { task, project, columnId, onAfterDelete } = pendingDelete;
+    const col = project.data.columns.find(c => c.id === columnId);
     if (col) {
       col.tasks = col.tasks.filter(t => t.id !== task.id);
       await saveProjectToDisk(project);
@@ -43,8 +44,8 @@ export function initConfirmDeleteModal() {
   });
 }
 
-export function showDeleteConfirm(task, project, colName, onAfterDelete) {
-  pendingDelete = { task, project, colName, onAfterDelete };
+export function showDeleteConfirm(task, project, columnId, onAfterDelete) {
+  pendingDelete = { task, project, columnId, onAfterDelete };
   const titleEl = document.getElementById('confirm-delete-title');
   if (titleEl) titleEl.textContent = task.title.replace(/#[\w-]+/g, '').trim();
   const warningEl = document.getElementById('confirm-delete-subtask-warning');
@@ -102,7 +103,7 @@ export function initModal() {
 
     const project = state.projects.find(p => p.id === activeProjectId);
     if (project) {
-      showDeleteConfirm(activeTask, project, activeColumnName, closeModal);
+      showDeleteConfirm(activeTask, project, activeColumnId, closeModal);
     }
   });
   
@@ -149,12 +150,14 @@ export function initModal() {
     activeTask.title = cleanTitle;
     
     if (isCreatingNew) {
-      let col = project.data.columns.find(c => c.name === activeColumnName);
-      if (!col) {
-        col = { name: activeColumnName, level: 2, tasks: [] };
+      let col = project.data.columns.find(c => c.id === activeColumnId);
+      if (!col && activeColumnName) {
+        col = { id: Math.random().toString(36).substring(2, 9), name: activeColumnName, level: 2, tasks: [] };
         project.data.columns.push(col);
       }
-      col.tasks.push(activeTask);
+      if (col) {
+        col.tasks.push(activeTask);
+      }
     }
     
     await saveProjectToDisk(project);
@@ -206,9 +209,10 @@ function createSubtaskRow(title, completed, listType = 'bullet', hasCheckbox = t
  * @param {string} columnName 
  * @param {boolean} isNew 
  */
-export function openModal(task, projectId, columnName, isNew = false) {
+export function openModal(task, projectId, columnId, columnName, isNew = false) {
   activeTask = task;
   activeProjectId = projectId;
+  activeColumnId = columnId;
   activeColumnName = columnName;
   isCreatingNew = isNew;
   

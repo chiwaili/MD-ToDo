@@ -9,7 +9,7 @@ import {
 } from './file-system.js';
 import { parseMarkdown, compileMarkdown } from './parser.js';
 import { renderSidebar } from './components/sidebar.js';
-import { renderBoard } from './components/kanban.js';
+import { renderBoard, moveCheckedItemsToDone } from './components/kanban.js';
 import { initModal, initConfirmDeleteModal } from './components/modal.js';
 
 // Central State (Version 2 with unique IDs and folder support)
@@ -47,6 +47,20 @@ export function renderApp() {
   renderSidebar();
   renderBoard();
   updateStats();
+  updateMoveCheckedButton();
+}
+
+function updateMoveCheckedButton() {
+  const moveCheckedBtn = document.getElementById('move-checked-btn');
+  if (!moveCheckedBtn) return;
+
+  const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id) && p.permissionGranted);
+  const hasActiveProjects = activeProjects.length > 0;
+
+  moveCheckedBtn.disabled = !hasActiveProjects;
+  moveCheckedBtn.title = hasActiveProjects
+    ? 'Move all checked tasks into the Done column'
+    : 'Select an active project to enable moving checked tasks.';
 }
 
 /**
@@ -74,6 +88,88 @@ function updateStats() {
   });
   
   statsBadge.innerHTML = `<span class="stats-badge">${completedTasks} / ${totalTasks} Completed</span>`;
+}
+
+function normalizeHeaderKey(name) {
+  return name ? name.trim().toLowerCase() : '';
+}
+
+function getTaskDedupKey(task) {
+  const title = (task.title || '').trim().toLowerCase();
+  const description = (task.description || []).map(line => line.trim().toLowerCase()).join('\n');
+  const tags = (task.tags || []).map(tag => tag.trim().toLowerCase()).sort().join(',');
+  return `${title}||${description}||${tags}`;
+}
+
+async function mergeDuplicateHeaders() {
+  const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id) && p.permissionGranted);
+  let mergedCount = 0;
+
+  for (const project of activeProjects) {
+    const headerMap = new Map();
+    const mergedColumns = [];
+    let changed = false;
+
+    for (const column of project.data.columns) {
+      const key = normalizeHeaderKey(column.name);
+      if (!headerMap.has(key)) {
+        headerMap.set(key, {
+          id: column.id,
+          name: column.name,
+          level: column.level,
+          tasks: [...column.tasks]
+        });
+        mergedColumns.push(headerMap.get(key));
+      } else {
+        const existing = headerMap.get(key);
+        existing.tasks.push(...column.tasks);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      project.data.columns = mergedColumns;
+      await saveProjectToDisk(project);
+      mergedCount += 1;
+    }
+  }
+
+  return { totalProjects: activeProjects.length, mergedCount };
+}
+
+async function mergeDuplicateItemsWithinColumns() {
+  const activeProjects = state.projects.filter(p => state.selectedProjectIds.includes(p.id) && p.permissionGranted);
+  let mergedColumns = 0;
+  let mergedTasks = 0;
+
+  for (const project of activeProjects) {
+    let projectChanged = false;
+
+    project.data.columns.forEach(column => {
+      const seen = new Set();
+      const uniqueTasks = [];
+
+      column.tasks.forEach(task => {
+        const key = getTaskDedupKey(task);
+        if (!seen.has(key)) {
+          seen.add(key);
+          uniqueTasks.push(task);
+        } else {
+          projectChanged = true;
+          mergedTasks += 1;
+        }
+      });
+
+      column.tasks = uniqueTasks;
+    });
+
+    if (projectChanged) {
+      await saveProjectToDisk(project);
+      mergedColumns += 1;
+    }
+  }
+
+  return { totalProjects: activeProjects.length, mergedColumns, mergedTasks };
 }
 
 /**
@@ -249,8 +345,7 @@ export async function requestProjectPermission(project) {
   }
 }
 
-// Global Event Listeners & Initialization
-document.addEventListener('DOMContentLoaded', async () => {
+async function initializeApp() {
   // Wire Theme Toggle
   const themeToggle = document.getElementById('theme-toggle');
   if (themeToggle) {
@@ -301,6 +396,83 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Error loading stored project handles:', err);
   }
   
+  const mergeHeadersBtn = document.getElementById('merge-headers-btn');
+  if (mergeHeadersBtn) {
+    mergeHeadersBtn.addEventListener('click', async () => {
+      const result = await mergeDuplicateHeaders();
+      if (result.totalProjects === 0) {
+        alert('Select an active project to merge duplicate headers.');
+        return;
+      }
+      if (result.mergedCount === 0) {
+        alert('No duplicate headers found in selected projects.');
+      } else {
+        alert(`Merged duplicate headers in ${result.mergedCount} project(s).`);
+      }
+      renderApp();
+    });
+  }
+
+  const mergeItemsBtn = document.getElementById('merge-items-btn');
+  if (mergeItemsBtn) {
+    mergeItemsBtn.addEventListener('click', async () => {
+      const result = await mergeDuplicateItemsWithinColumns();
+      if (result.totalProjects === 0) {
+        alert('Select an active project to merge duplicate items.');
+        return;
+      }
+      if (result.mergedTasks === 0) {
+        alert('No duplicate items found within the selected project columns.');
+      } else {
+        alert(`Merged ${result.mergedTasks} duplicate item(s) across ${result.mergedColumns} project(s).`);
+      }
+      renderApp();
+    });
+  }
+
+  const moveCheckedBtn = document.getElementById('move-checked-btn');
+  if (moveCheckedBtn) {
+    moveCheckedBtn.addEventListener('click', async () => {
+      const result = await moveCheckedItemsToDone();
+      if (!result) {
+        alert('No active projects are selected. Please select a project from the sidebar first.');
+        return;
+      }
+
+      if (result.totalMoved === 0) {
+        alert('No checked tasks were found in the selected projects.');
+      }
+
+      renderApp();
+    });
+  }
+
+  const toolsBtn = document.getElementById('tools-btn');
+  const closeToolsBtn = document.getElementById('close-tools-btn');
+  const toolsPanel = document.getElementById('tools-panel');
+
+  const toggleToolsPanel = (visible) => {
+    if (!toolsPanel) return;
+    toolsPanel.classList.toggle('visible', visible);
+    toolsPanel.setAttribute('aria-hidden', visible ? 'false' : 'true');
+  };
+
+  if (toolsBtn) {
+    toolsBtn.addEventListener('click', () => toggleToolsPanel(true));
+  }
+
+  if (closeToolsBtn) {
+    closeToolsBtn.addEventListener('click', () => toggleToolsPanel(false));
+  }
+
+  document.addEventListener('click', (event) => {
+    if (!toolsPanel || !toolsPanel.classList.contains('visible')) return;
+    const isInside = toolsPanel.contains(event.target) || (toolsBtn && toolsBtn.contains(event.target));
+    if (!isInside) {
+      toggleToolsPanel(false);
+    }
+  });
+  
   renderApp();
   
   // Wire Search
@@ -320,4 +492,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderBoard();
     });
   }
-});
+}
+
+if (document.readyState !== 'loading') {
+  initializeApp();
+} else {
+  document.addEventListener('DOMContentLoaded', initializeApp);
+}
