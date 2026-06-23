@@ -2,19 +2,6 @@
 
 Thanks for your interest in contributing to md-todo!
 
-## Setup
-
-No install step required. Clone the repo and serve it:
-
-```bash
-git clone https://github.com/chiwaili/md-todo.git
-cd md-todo
-python -m http.server 8000
-# or: npx http-server .
-```
-
-Open `http://localhost:8000` in Chrome, Edge, or Opera (Chromium-based browsers only — the File System Access API is required).
-
 ## Making changes
 
 - No build step. Edit files directly and refresh the browser.
